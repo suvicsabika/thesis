@@ -1,0 +1,671 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an S3 bucket, CodeCommit repos, ECR repos, CodeBuild projects, CodePipelines, ECS services, and dynamic cluster name and VPC.
+
+Parameters:
+  DBUsername:
+    Type: String
+    NoEcho: true
+  
+  DBPassword:
+    Type: String
+    NoEcho: true
+
+  BucketName:
+    Description: The name of the S3 bucket to create
+    Type: String
+    Default: "szakdoga-deploy"
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-zA-Z0-9.-]*$"
+    ConstraintDescription: "Bucket name must be between 3 and 63 characters and can only contain lowercase letters, numbers, dots, and hyphens."
+
+  AccountId:
+    Description: The AWS Account ID where the resources are hosted (e.g., 123456789012)
+    Type: String
+    Default: "992382834514"
+    MinLength: 12
+    MaxLength: 12
+    AllowedPattern: "^[0-9]{12}$"
+    ConstraintDescription: "Must be a valid 12-digit AWS Account ID."
+
+  BackendRepoName:
+    Description: The name of the backend repository
+    Type: String
+    Default: "backend"
+    AllowedPattern: "^[a-zA-Z0-9_-]+$"
+    ConstraintDescription: "The repository name must consist of alphanumeric characters, underscores, or hyphens."
+    MinLength: 3
+    MaxLength: 100
+
+  FrontendRepoName:
+    Description: The name of the frontend repository
+    Type: String
+    Default: "frontend"
+    AllowedPattern: "^[a-zA-Z0-9_-]+$"
+    ConstraintDescription: "The repository name must consist of alphanumeric characters, underscores, or hyphens."
+    MinLength: 3
+    MaxLength: 100
+
+  VpcId:
+    Description: The ID of the VPC where ECS services and security groups will be deployed (e.g., vpc-xxxxxxxx)
+    Type: String
+    Default: "vpc-03b2a6874b207e68f"
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: "^vpc-[a-fA-F0-9]{8,17}$"
+    ConstraintDescription: "Must be a valid VPC ID."
+ 
+  SubnetId:
+    Description: The ID of the Subnet where ECS services and security groups will be deployed (e.g., subnet-xxxxxxxx)
+    Type: String
+    Default: "subnet-0ef723cbaa7ae3980"
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: "^subnet-[a-fA-F0-9]{8,17}$"
+    ConstraintDescription: "Must be a valid Subnet ID."
+ 
+  SubnetId2:
+    Description: The ID of the Subnet where ECS services and security groups will be deployed (e.g., subnet-xxxxxxxx)
+    Type: String
+    Default: "subnet-0e47e0b95d758ba94"
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: "^subnet-[a-fA-F0-9]{8,17}$"
+    ConstraintDescription: "Must be a valid Subnet ID."
+
+  ClusterName:
+    Description: The name of the ECS cluster to create
+    Type: String
+    Default: "edusys-cluster"
+    AllowedPattern: "^[a-zA-Z0-9_-]+$"
+    ConstraintDescription: "The cluster name must consist of alphanumeric characters, underscores, or hyphens."
+    MinLength: 3
+    MaxLength: 255
+
+Resources:
+  MyRDSInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: "edusys-db"
+      AllocatedStorage: "20"
+      DBInstanceClass: "db.t3.micro"
+      Engine: "mysql"
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+
+  # Security Group for RDS
+  RDSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "RDS security group"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: "3306"
+          ToPort: "3306"
+          SourceSecurityGroupId: !Ref BackendSecurityGroup
+
+  # Subnet Group for RDS
+  RDSSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS"
+      SubnetIds:
+        - !Ref SubnetId
+        - !Ref SubnetId2
+
+  # S3 Bucket for storing artifacts
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # CloudWatch Log Group
+  CloudWatchFrontendLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/ecs/${FrontendRepoName}"
+      RetentionInDays: 7  # You can modify this as needed
+
+  # CloudWatch Log Group
+  CloudWatchBackendLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/ecs/${BackendRepoName}"
+      RetentionInDays: 7  # You can modify this as needed
+
+  # CloudWatch Log Group
+  CloudWatchFrontendCodeBuildLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub  "/aws/codebuild/${FrontendRepoName}-docker-build"
+      RetentionInDays: 7  # You can modify this as needed
+
+  # CloudWatch Log Group
+  CloudWatchBackendCodeBuildLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub  "/aws/codebuild/${BackendRepoName}-docker-build"
+      RetentionInDays: 7  # You can modify this as needed
+
+  # CodeCommit Repositories
+  BackendRepository:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties:
+      RepositoryName: !Ref BackendRepoName
+
+  FrontendRepository:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties:
+      RepositoryName: !Ref FrontendRepoName
+
+
+  # ECR Repositories
+  BackendECRRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: !Ref BackendRepoName
+
+  FrontendECRRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: !Ref FrontendRepoName
+
+  # ECS Cluster (dynamic name)
+  ECSCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  # ECS Task Execution Role (for Fargate logging and ECR)
+  ECSExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetRepositoryPolicy
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:BatchGetImage
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+
+  # ECS Task Definition for Backend
+  BackendTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Sub "${BackendRepoName}"
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: !Ref BackendRepoName
+          Image: !Sub "${AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendRepoName}:latest"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "/ecs/${BackendRepoName}"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "ecs"
+          Environment:
+            - Name: "DB_HOST"
+              Value: !GetAtt MyRDSInstance.Endpoint.Address
+            - Name: "DB_NAME"
+              Value: "edusys-db"
+            - Name: "DB_USER"
+              Value: !Ref DBUsername
+            - Name: "DB_PASSWORD"
+              Value: !Ref DBPassword
+
+  # ECS Task Definition for Frontend
+  FrontendTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Sub "${FrontendRepoName}"
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: !Ref FrontendRepoName
+          Image: !Sub "${AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${FrontendRepoName}:latest"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "/ecs/${FrontendRepoName}"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "ecs"
+
+  # ECS Service for Backend
+  BackendService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: !Sub "${BackendRepoName}-service"
+      TaskDefinition: !Ref BackendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref BackendSecurityGroup
+          Subnets:
+            - !Ref SubnetId  # Replace with your subnet IDs
+
+  # ECS Service for Frontend
+  FrontendService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: !Sub "${FrontendRepoName}-service"
+      TaskDefinition: !Ref FrontendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref FrontendSecurityGroup
+          Subnets:
+            - !Ref SubnetId  # Replace with your subnet IDs
+
+  # Security Group for Backend
+  BackendSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub "Allow traffic to ${BackendRepoName} service"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+
+  # Security Group for Frontend
+  FrontendSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub "Allow traffic to ${FrontendRepoName} service"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+  # CodeBuild Role for Docker builds
+  CodeBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - s3:*
+                  - ecr:*
+                Resource: "*"
+
+  # CodeBuild Projects (with buildspec.yaml)
+
+  BackendBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: !Sub "${BackendRepoName}-docker-build"
+      Source:
+        Type: CODECOMMIT
+        Location: !GetAtt BackendRepository.CloneUrlHttp
+        BuildSpec: "buildspec.yaml"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+
+  FrontendBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: !Sub "${FrontendRepoName}-docker-build"
+      Source:
+        Type: CODECOMMIT
+        Location: !GetAtt FrontendRepository.CloneUrlHttp
+        BuildSpec: "buildspec.yaml"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+
+
+  # CodePipeline Service Role
+  PipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - codecommit:*
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                Resource: "*"
+
+  # Backend CodePipeline
+  BackendPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      RoleArn: !GetAtt PipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref S3Bucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: BackendSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: "1"
+              Configuration:
+                RepositoryName: !Ref BackendRepoName
+                BranchName: "master"
+              OutputArtifacts:
+                - Name: BackendSourceOutput
+        - Name: Build
+          Actions:
+            - Name: BackendBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref BackendBuildProject
+              InputArtifacts:
+                - Name: BackendSourceOutput
+
+  # Frontend CodePipeline
+  FrontendPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      RoleArn: !GetAtt PipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref S3Bucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: FrontendSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: "1"
+              Configuration:
+                RepositoryName: !Ref FrontendRepoName
+                BranchName: "master"
+              OutputArtifacts:
+                - Name: FrontendSourceOutput
+        - Name: Build
+          Actions:
+            - Name: FrontendBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref FrontendBuildProject
+              InputArtifacts:
+                - Name: FrontendSourceOutput
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeTasks
+                  - ec2:DescribeNetworkInterfaces
+                  - route53:ChangeResourceRecordSets
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # Create the CloudWatch Log Group for the Lambda function
+  UpdateDNSLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${UpdateDNSLambdaFunction}"
+      RetentionInDays: 14  # Set the desired retention period (e.g., 14 days)
+
+
+  # Create the Lambda function
+  UpdateDNSLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: UpdateFargateDNS
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Environment:
+        Variables:
+          HOSTED_ZONE_ID: 'Z0764193DD1DX5BPQF8H'  # Replace with your hosted zone ID
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import logging
+
+          # Set up logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ecs_client = boto3.client('ecs')
+          ec2_client = boto3.client('ec2')
+          route53_client = boto3.client('route53')
+
+          def lambda_handler(event, context):
+              logger.info('Received event: %s', json.dumps(event))
+              detail = event.get('detail', {})
+              last_status = detail.get('lastStatus')
+
+              # Only proceed if the task status is RUNNING
+              if last_status == 'RUNNING':
+                  cluster_arn = detail.get('clusterArn')
+                  task_arn = detail.get('taskArn')
+                  cluster_name = cluster_arn.split('/')[-1]  # Extract the cluster name from the ARN
+
+                  # Describe the ECS task to get ENI information
+                  response = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
+                  task = response['tasks'][0]
+
+                  # Extract ENI and get public IP from the network interface
+                  eni = task['attachments'][0]['details'][1]['value']
+                  eni_info = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni])
+                  network_interface = eni_info['NetworkInterfaces'][0]
+
+                  # Check if there is a public IP
+                  public_ip = network_interface.get('Association', {}).get('PublicIp')
+
+                  if public_ip:
+                      hosted_zone_id = os.environ['HOSTED_ZONE_ID']
+                      task_name = task['taskDefinitionArn'].split('/')[-1].split(':')[0]  # Extract the task name
+                      domain_name = f'{task_name}.edusys.cloud'  # Construct the domain using the task name
+
+                      # Update Route 53 with the public IP
+                      route53_client.change_resource_record_sets(
+                          HostedZoneId=hosted_zone_id,
+                          ChangeBatch={
+                              'Comment': 'Update DNS record for new ECS task public IP',
+                              'Changes': [
+                                  {
+                                      'Action': 'UPSERT',
+                                      'ResourceRecordSet': {
+                                          'Name': domain_name,
+                                          'Type': 'A',
+                                          'TTL': 60,
+                                          'ResourceRecords': [{'Value': public_ip}]
+                                      }
+                                  }
+                              ]
+                          }
+                      )
+                      logger.info('Updated DNS record for %s to %s', domain_name, public_ip)
+                      return {
+                          'statusCode': 200,
+                          'body': json.dumps(f'Updated DNS record for {domain_name} to {public_ip}')
+                      }
+                  else:
+                      logger.warning('No public IP found for the task')
+                      return {
+                          'statusCode': 400,
+                          'body': json.dumps('No public IP found for the task')
+                      }
+
+              logger.info('No action taken for the event')
+
+  # Create an EventBridge rule to trigger the Lambda function
+  UpdateDNSEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.ecs
+        detail-type:
+          - ECS Task State Change
+        detail:
+          lastStatus:
+            - RUNNING
+      Targets:
+        - Arn: !GetAtt UpdateDNSLambdaFunction.Arn
+          Id: "UpdateDNSLambdaFunction"
+
+  # Grant EventBridge permission to invoke the Lambda function
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateDNSLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt UpdateDNSEventRule.Arn
+
+
+Outputs:
+  ClusterNameOutput:
+    Description: The name of the ECS Cluster
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
+  BackendECRRepoURI:
+    Description: The URI of the Backend ECR Repository
+    Value: !GetAtt BackendECRRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-BackendECRRepoURI"
+
+  FrontendECRRepoURI:
+    Description: The URI of the Frontend ECR Repository
+    Value: !GetAtt FrontendECRRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendECRRepoURI"
