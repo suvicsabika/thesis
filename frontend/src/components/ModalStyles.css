@@ -1,0 +1,26 @@
+/* Custom Modal Overlay */
+.custom-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+  }
+  
+  /* Custom Modal Content */
+  .custom-modal-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff; /* Solid white background */
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    z-index: 1050;
+    width: 90%;
+    max-width: 400px;
+    padding: 20px;
+  }
+  

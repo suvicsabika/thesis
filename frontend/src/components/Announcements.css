@@ -1,0 +1,157 @@
+/* Reactions and comments sections */
+.reactions,
+.comments {
+  font-size: 1rem;
+  color: #000000;
+}
+
+/* Comment styling */
+.comment-item {
+  background: transparent;
+  border: none;
+  color: #000000;
+  padding-left: 0;
+}
+
+/* Reaction and comment icons */
+.reaction-icon {
+  margin-right: 5px;
+}
+
+.comment-icon {
+  color: #ffd700;
+  margin-left: 10px;
+}
+
+/* Announcement item list styling */
+.announcement-item {
+  background-color: #ffffff;
+  border: 0;
+  border-radius: 10px !important;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Hover effect */
+.announcement-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+  }
+
+.announcement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Button styling */
+.announcement-bottom-half .btn-primary, .comments .btn-primary, .announcement-card .btn-primary {
+  background-color: #ff5722;
+  border: none;
+  transition: background-color 0.3s ease;
+}
+
+.announcement-bottom-half .btn-primary:hover, .comments .btn-primary:hover, .announcement-card .btn-primary:hover {
+  background-color: #e64a19;
+}
+
+/* Card styling */
+.announcement-card {
+    background-color: #ffffff;
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    color: white;
+    padding: 20px;
+    position: relative;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  
+  /* Announcement title */
+  .announcement-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #000000;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Popup Overlay */
+  .popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s 0.3s;
+  }
+  
+  .popup-overlay.active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease;
+  }
+  
+  .popup-window {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 600px;
+    position: relative;
+    transform: scale(0.8);
+    transition: transform 0.3s ease;
+  }
+  
+  .popup-overlay.active .popup-window {
+    transform: scale(1);
+  }
+  
+  /* Close button styling */
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    cursor: pointer;
+    color: #ff5722;
+  }
+  
+  /* Form elements */
+  .form-group label {
+    font-weight: bold;
+    color: #000000;
+  }
+  
+  .form-control {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    margin-top: 5px;
+  }
+  
+  /* Announcement content */
+  .announcement-content {
+    color: #000000;
+    font-size: 1rem;
+  }
+
+  .close-btn {
+    transition: transform .7s ease-in-out;
+  }
+  .close-btn:hover {
+    transform: rotate(90deg);
+  }

@@ -1,0 +1,26 @@
+.sidebar {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Example: Adding a hover effect to an element */
+.sidebar:hover {
+    transform: translateX(10px); /* Example transformation */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Example shadow */
+}
+
+/* For your toggle button (FaBars) */
+.sidebar-header .fabars {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Adding hover effect to the toggle button */
+.sidebar-header .fabars:hover {
+    transform: rotate(90deg); /* Rotate as an example */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Shadow on hover */
+}
+
+/* Adding hover effect to the toggle button */
+.sidebar-header .fabars:hover{
+    transform: rotate(90deg); /* Rotate as an example */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Shadow on hover */
+}
