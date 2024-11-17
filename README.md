@@ -1,2 +1,3 @@
 # Thesis
-## Cloud-based study system
+## Implementation of cloud-based study system
+### Csaba Süvöltős, Computer Science Engineering BSc
